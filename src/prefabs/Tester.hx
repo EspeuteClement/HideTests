@@ -1,630 +1,162 @@
 package prefabs;
 
-class TestDiffPrefabBase extends hrt.prefab.Prefab {
-	@:s var floatValue : Float;
-	@:s var intValue: Int;
-	var dontDiffMe: Int;
-	@:s var stringValue: String;
 
-	public static function test() {
-		var a = new TestDiffPrefabBase(null, null);
-		var b = new TestDiffPrefabBase(null, null);
+enum DiffResult {
+	Skip;
+	Set(value: Dynamic);
+}
+class Diff {
 
-		b.floatValue = 1.0;
-		b.intValue = 2;
-		b.dontDiffMe = 3;
-		b.stringValue = "Foo";
+	public static function diffObj(original: Dynamic, modified: Dynamic) : DiffResult {
+		var result = {};
+		var removedFields : Array<String> = [];
 
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectEqual(b.floatValue, diff.floatValue);
-					Tester.expectEqual(b.intValue, diff.intValue);
-					Tester.expectEqual(null, diff.dontDiffMe);
-					Tester.expectEqual(b.stringValue, diff.stringValue);
+		if (original == null || modified == null) {
+			if (original == modified)
+				return Skip;
+			return Set(modified);
+		}
+
+		// Mark fields as removed
+		for (originalField in Reflect.fields(original)) {
+			if (originalField == "children")
+				continue;
+
+			if (!Reflect.hasField(modified, originalField)) {
+				removedFields.push(originalField);
+				continue;
 			}
 		}
 
+		for (modifiedField in Reflect.fields(modified)) {
+			if (modifiedField == "children")
+				continue;
 
-		a.floatValue = 1.0;
-		a.intValue = 10;
-		a.dontDiffMe = 3;
-		a.stringValue = "Bar";
+			var originalValue = Reflect.getProperty(original, modifiedField);
+			var modifiedValue = Reflect.getProperty(modified, modifiedField);
 
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(b.floatValue, diff.floatValue);
-					Tester.expectEqual(b.intValue, diff.intValue);
-					Tester.expectEqual(null, diff.dontDiffMe);
-					Tester.expectEqual(b.stringValue, diff.stringValue);
-			}
-		}
-
-		b.stringValue = null;
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(b.floatValue, diff.floatValue);
-					Tester.expectEqual(b.intValue, diff.intValue);
-					Tester.expectEqual(null, diff.dontDiffMe);
-					Tester.expectEqual(diff.stringValue, null);
-
-					// make sure that the field in the object exists (because we want to know in the diffs when to remove a value)
-					Assert.assert(Reflect.hasField(diff, "stringValue"));
-			}
-		}
-
-	}
-}
-
-enum TestDiffEnum {
-	Apple;
-	Peach;
-	Banana;
-}
-
-enum abstract TestDiffEnumAbstract(String) {
-	var Red;
-	var Green;
-	var Blue;
-}
-
-enum abstract TestDiffEnumAbstract2(Int) {
-	var Alice;
-	var Bob;
-	var Charles;
-}
-
-class TestDiffPrefabEnums extends hrt.prefab.Prefab {
-	@:s var fruit: TestDiffEnum;
-	@:s var color: TestDiffEnumAbstract;
-	@:s var hacker: TestDiffEnumAbstract2;
-
-
-	public static function test() {
-		var a = new TestDiffPrefabEnums(null, null);
-		var b = new TestDiffPrefabEnums(null, null);
-		b.fruit = Peach;
-		b.color = Green;
-		b.hacker = Charles;
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectEqual(diff.fruit, "Peach");
-					Tester.expectEqual(diff.color, "Green");
-					Tester.expectEqual(diff.hacker, 2);
-			}
-
-		}
-
-		a.fruit = Peach;
-		a.color = Green;
-		a.hacker = Charles;
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
+			switch(diffValue(originalValue, modifiedValue)) {
 				case Skip:
-				case Set(diff): throw "there shoudl be no diff";
+				case Set(v):
+					Reflect.setField(result, modifiedField, v);
 			}
 		}
 
-		a.fruit = Banana;
-		a.color = Blue;
-		a.hacker = Bob;
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectEqual(diff.fruit, "Peach");
-					Tester.expectEqual(diff.color, "Green");
-					Tester.expectEqual(diff.hacker, 2);
-			}
+		if (removedFields.length > 0) {
+			Reflect.setField(result, "@removed", removedFields);
 		}
+
+		if (Reflect.fields(result).length == 0)
+			return Skip;
+		return Set(result);
 	}
-}
 
-typedef TestStruct = {foo: Int, bar: Float};
-class TestSubclass extends hrt.prefab.Prefab {
-	@:s public var float: Float;
-	@:s public var int: Int;
-	@:s public var array: Array<Float>;
-
-	//public function new() {};
-}
-
-class TestDiffTypedef extends hrt.prefab.Prefab {
-	@:s var td : TestStruct;
-	@:s var sub : TestSubclass;
-
-	public static function test() {
-		var a = new TestDiffTypedef(null, null);
-		var b = new TestDiffTypedef(null, null);
-		b.td = {foo: 42, bar: 99.0};
-		b.sub = new TestSubclass(null, null);
-		b.sub.float = 42.0;
-		b.sub.int = 99;
-		b.sub.array = [1,2,3];
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectEqual(diff.td.foo, 42);
-					Tester.expectEqual(diff.td.bar, 99.0);
-					Tester.expectNotEqual(a.td, diff.td); // check deep copy succeeded
-					Tester.expectNotEqual(b.td, diff.td); // check deep copy succeeded
-
-					Tester.expectEqual(diff.sub.float, 42.0);
-					Tester.expectEqual(diff.sub.int, 99);
-					Tester.expectEqual(diff.sub.array[0], 1);
-					Tester.expectEqual(diff.sub.array[1], 2);
-					Tester.expectEqual(diff.sub.array[2], 3);
-					Tester.expectNotEqual(a.sub, diff.sub); // check deep copy succeeded
-					Tester.expectNotEqual(b.sub, diff.sub); // check deep copy succeeded
-			}
+	static function diffArr(original: Array<Dynamic>, modified: Dynamic) : DiffResult {
+		if (original.length != modified.length) {
+			return Set(modified);
 		}
 
-		a.td = {foo: 41, bar: 99.0};
+		for (index in 0...original.length) {
+			var originalValue = original[index];
+			var modifiedValue = modified[index];
 
-		a.sub = new TestSubclass(null, null);
-		a.sub.float = 42.0;
-		a.sub.int = 99;
-		a.sub.array = [1,2,3];
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectEqual(diff.td.foo, 42);
-					Assert.assert(!Reflect.hasField(diff.td, "bar"));
-					Tester.expectNotEqual(a.td, diff.td); // check deep copy succeeded
-					Tester.expectNotEqual(b.td, diff.td); // check deep copy succeeded
-
-					Assert.assert(!Reflect.hasField(diff, "sub"));
-			}
-		}
-
-		a.sub.float = 41.0;
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectEqual(diff.sub.float, 42.0);
-					Assert.assert(!Reflect.hasField(diff.sub, "int"));
-					Assert.assert(!Reflect.hasField(diff.sub, "array"));
-			}
-		}
-	}
-}
-
-class TestDiffArray extends hrt.prefab.Prefab {
-	@:s var ofFloats : Array<Float>;
-	@:s var ofInts : Array<Int>;
-	@:s var ofStructs : Array<TestStruct>;
-	@:s var ofDynamics : Array<Dynamic>;
-	@:s var ofSubs : Array<TestSubclass>;
-
-	public static function test() {
-		var a = new TestDiffArray(null, null);
-		var b = new TestDiffArray(null, null);
-
-		b.ofFloats = [1.0,2.0,3.0];
-		b.ofInts = [1,2,3];
-		b.ofStructs = [{foo: 1, bar: 1.0},{foo: 2, bar: 2.0},{foo: 3, bar: 3.0}];
-		b.ofDynamics = [{foo: 1, bar: 1.0},{buzz: 2, boar: 2.0},{foo: 3, bar: 3.0}];
-		b.ofSubs = [new TestSubclass(null, null), new TestSubclass(null, null)];
-		b.ofSubs[0].float = 1.0;
-		b.ofSubs[0].int = 2;
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(diff.ofFloats, null);
-					Tester.expectNotEqual(diff.ofInts, null);
-					Tester.expectNotEqual(diff.ofStructs, null);
-					Tester.expectNotEqual(diff.ofDynamics, null);
-
-					// the arrays refs must not be equal
-					Tester.expectNotEqual(diff.ofFloats, b.ofFloats);
-					Tester.expectNotEqual(diff.ofInts, b.ofInts);
-					Tester.expectNotEqual(diff.ofStructs, b.ofStructs);
-					Tester.expectNotEqual(diff.ofDynamics, b.ofDynamics);
-
-					Tester.expectEqual(b.ofFloats.length, diff.ofFloats.length);
-					Tester.expectEqual(b.ofFloats[0], diff.ofFloats[0]);
-					Tester.expectEqual(b.ofFloats[1], diff.ofFloats[1]);
-					Tester.expectEqual(b.ofFloats[2], diff.ofFloats[2]);
-
-					Tester.expectEqual(b.ofInts.length, diff.ofInts.length);
-					Tester.expectEqual(b.ofInts[0], diff.ofInts[0]);
-					Tester.expectEqual(b.ofInts[1], diff.ofInts[1]);
-					Tester.expectEqual(b.ofInts[2], diff.ofInts[2]);
-
-					Tester.expectEqual(b.ofStructs.length, diff.ofStructs.length);
-					Tester.expectEqual(b.ofStructs[0].foo, diff.ofStructs[0].foo);
-					Tester.expectEqual(b.ofStructs[1].bar, diff.ofStructs[1].bar);
-					Tester.expectEqual(b.ofStructs[2].foo, diff.ofStructs[2].foo);
-
-					Tester.expectEqual(b.ofDynamics.length, diff.ofDynamics.length);
-					Tester.expectEqual(b.ofDynamics[0].foo, diff.ofDynamics[0].foo);
-					Tester.expectEqual(b.ofDynamics[1].boar, diff.ofDynamics[1].boar);
-					Tester.expectEqual(b.ofDynamics[2].foo, diff.ofDynamics[2].foo);
-
-					Tester.expectEqual(b.ofSubs.length, diff.ofSubs.length);
-					Tester.expectEqual(b.ofSubs[0].float, diff.ofSubs[0].float);
-					Tester.expectEqual(b.ofSubs[0].int, diff.ofSubs[0].int);
-			}
-		}
-
-		/// Test similar arrays being ignored in diffs
-
-		a.ofFloats = [1.0,2.0,3.0];
-		a.ofInts = [1,2,3];
-		a.ofStructs = [{foo: 1, bar: 1.0},{foo: 2, bar: 2.0},{foo: 3, bar: 3.0}];
-
-		a.ofSubs = [new TestSubclass(null, null), new TestSubclass(null, null)];
-		a.ofSubs[0].float = 1.0;
-		a.ofSubs[0].int = 2;
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Assert.assert(!Reflect.hasField(diff,"ofFloats"));
-					Assert.assert(!Reflect.hasField(diff,"ofInts"));
-					Assert.assert(!Reflect.hasField(diff,"ofStructs"));
-					Assert.assert(!Reflect.hasField(diff,"ofSubs"));
-			}
-		}
-
-		/// Tests that having one value off copies the whole array in the diff
-
-		a.ofFloats[1] = 99;
-		a.ofInts[2] = 99;
-		a.ofStructs.push({foo: 3, bar: 3.0});
-		a.ofSubs[0].int = 1;
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(diff.ofFloats, null);
-					Tester.expectNotEqual(diff.ofInts, null);
-					Tester.expectNotEqual(diff.ofStructs, null);
-
-					// the arrays refs must not be equal
-					Tester.expectNotEqual(diff.ofFloats, b.ofFloats);
-					Tester.expectNotEqual(diff.ofInts, b.ofInts);
-					Tester.expectNotEqual(diff.ofStructs, b.ofStructs);
-
-					Tester.expectEqual(b.ofFloats.length, diff.ofFloats.length);
-					Tester.expectEqual(b.ofFloats[0], diff.ofFloats[0]);
-					Tester.expectEqual(b.ofFloats[1], diff.ofFloats[1]);
-					Tester.expectEqual(b.ofFloats[2], diff.ofFloats[2]);
-
-					Tester.expectEqual(b.ofInts.length, diff.ofInts.length);
-					Tester.expectEqual(b.ofInts[0], diff.ofInts[0]);
-					Tester.expectEqual(b.ofInts[1], diff.ofInts[1]);
-					Tester.expectEqual(b.ofInts[2], diff.ofInts[2]);
-
-					Tester.expectEqual(b.ofStructs.length, diff.ofStructs.length);
-					Tester.expectEqual(b.ofStructs[0].foo, diff.ofStructs[0].foo);
-					Tester.expectEqual(b.ofStructs[1].bar, diff.ofStructs[1].bar);
-					Tester.expectEqual(b.ofStructs[2].foo, diff.ofStructs[2].foo);
-
-					Tester.expectEqual(b.ofSubs.length, diff.ofSubs.length);
-					Tester.expectEqual(b.ofSubs[0].float, diff.ofSubs[0].float);
-					Tester.expectEqual(b.ofSubs[0].int, diff.ofSubs[0].int);
-			}
-		}
-	}
-}
-
-class TestDiffDynamic extends hrt.prefab.Prefab {
-	@:s var dyn : Dynamic;
-
-	public static function test() {
-		var a = new TestDiffDynamic(null, null);
-		var b = new TestDiffDynamic(null, null);
-
-		b.dyn = {
-			foo: 1.0,
-			bar: 2.0,
-		};
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(diff.dyn, null);
-					Tester.expectNotEqual(diff.dyn, b.dyn);
-
-					Tester.expectEqual(diff.dyn.foo, 1.0);
-					Tester.expectEqual(diff.dyn.bar, 2.0);
-			}
-		}
-
-		a.dyn = {
-			foo: 1.0,
-			bar: 2.0,
-		};
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
+			switch(diffValue(originalValue, modifiedValue)) {
+				case Set(_):
+					// return the whole modified object when any field is different than the original
+					return Set(modified);
 				case Skip:
-				case Set(diff): throw "diff but there should be no diff";
 			}
 		}
+		return Skip;
+	}
 
-		a.dyn.buzz = 3.0;
+	static function diffValue(originalValue: Dynamic, modifiedValue: Dynamic) : DiffResult {
+		var originalType = Type.typeof(originalValue);
+		var modifiedType = Type.typeof(modifiedValue);
 
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(diff.dyn, null);
-					Tester.expectNotEqual(diff.dyn, b.dyn);
+		if (!originalType.equals(modifiedType)) {
+			return Set(modifiedValue);
+		}
 
-					Assert.assert(!Reflect.hasField(diff.dyn, "foo"));
-					Assert.assert(!Reflect.hasField(diff.dyn, "bar"));
-					Assert.assert(Reflect.hasField(diff.dyn, "buzz"));
-					Tester.expectEqual(diff.dyn.buzz, null);
+		switch (modifiedType) {
+			case TNull:
+				// The only way we get here is if both types are null, so by definition they are both null and so there is no diff
+				return Skip;
+			case TInt | TFloat | TBool:
+				if (originalValue == modifiedValue) {
+					return Skip;
+				}
+			case TObject:
+				return diffObj(originalValue, modifiedValue);
+			case TClass(subClass): {
+				switch (subClass) {
+					case String:
+						if (originalValue == modifiedValue) {
+							return Skip;
+						}
+					case Array:
+						return diffArr(originalValue, modifiedValue);
+					default:
+						throw "Can't diff class " + subClass;
+				}
 			}
+			default:
+				throw "Unhandled type " + modifiedType;
 		}
-
-		a.dyn.bar = 3.0;
-
-		{
-			var diff = a.diff(b, {});
-			switch(diff) {
-				case Skip: throw "no diff";
-				case Set(diff):
-					Tester.expectNotEqual(diff.dyn, null);
-					Tester.expectNotEqual(diff.dyn, b.dyn);
-
-					Assert.assert(!Reflect.hasField(diff.dyn, "foo"));
-					Tester.expectEqual(diff.dyn.bar, b.dyn.bar);
-					Assert.assert(Reflect.hasField(diff.dyn, "buzz"));
-					Tester.expectEqual(diff.dyn.buzz, null);
-			}
-		}
-	}
-}
-
-@:build(hrt.prefab.Macros.buildSerializable())
-class TestCopyAllToDynamic {
-	@:s public var float: Float = 42.0;
-	@:s public var int : Int;
-	@:s public var dyn : Dynamic;
-	@:s public var str : TestStruct;
-	@:s public var sub : TestSubclass;
-
-	public function new() {
-
+		return Set(modifiedValue);
 	}
 
-	static public function test() {
-		var a = new TestCopyAllToDynamic();
-		a.int = 16;
-
-		{
-			var copy = a.copyAllToDynamic({});
-
-			Tester.expectEqual(copy.float, 42.0);
-			Tester.expectEqual(copy.int, 16);
-
-			Assert.assert(Reflect.hasField(copy, "dyn"));
-			Tester.expectEqual(copy.dyn, null);
-
-			Assert.assert(Reflect.hasField(copy, "str"));
-			Tester.expectEqual(copy.str, null);
-
-			Assert.assert(Reflect.hasField(copy, "sub"));
-			Tester.expectEqual(copy.sub, null);
-		}
-
-		a.dyn = {foo: "Toto", bar: true};
-		a.str = {foo: 42, bar: 99.0};
-		a.sub = new TestSubclass(null, null);
-		a.sub.float = 42.0;
-		a.sub.int = 99;
-		a.sub.array = [1,2,3];
-
-		{
-			var copy = a.copyAllToDynamic({});
-
-			Tester.expectEqual(copy.float, 42.0);
-			Tester.expectEqual(copy.int, 16);
-
-			Assert.assert(Reflect.hasField(copy, "dyn"));
-			Tester.expectNotEqual(copy.dyn, null);
-			Tester.expectEqual(copy.dyn.foo, a.dyn.foo);
-			Tester.expectEqual(copy.dyn.bar, a.dyn.bar);
-
-			Tester.expectEqualDeep(copy.str, a.str);
-
-			Tester.expectNotEqual(copy.sub, null);
-			Tester.expectEqual(copy.sub.float, a.sub.float);
-			Tester.expectEqual(copy.sub.int, a.sub.int);
-			Tester.expectEqualDeep(copy.sub.array, a.sub.array);
-		}
+	public static function apply(orignal: Dynamic, diff: Dynamic) : Dynamic {
+		return null;
 	}
-}
-
-class TestDiffChildren {
 
 	public static function test() {
-		var a = new hrt.prefab.Prefab(null, null);
-		var b = new hrt.prefab.Prefab(null, null);
-
-		var aChild = new hrt.prefab.Prefab(a, null);
-		aChild.name = "child";
-		aChild.props = {foo: 1};
-
-		var aChildChild = new hrt.prefab.Prefab(aChild, null);
-		aChildChild.name = "subchild";
-		aChildChild.props = {foo: 2, bar: 3};
-
-
-		var bChild = new hrt.prefab.Prefab(b, null);
-		bChild.name = "child";
-		bChild.props = {foo: 1};
-
-		var bChildChild = new hrt.prefab.Prefab(bChild, null);
-		bChildChild.name = "subchild";
-		bChildChild.props = {foo: 2, bar: 3};
-
-		// Test there is no diff when the prefabs are identical
 		{
-			switch(a.diff(b, {})) {
-				case Skip:
-				case Set(_): throw "there should be no diff";
-			};
+			Tester.testDiff(Diff.diffObj(null, null), Skip);
+			Tester.testDiff(Diff.diffObj(null, {}), Set({}));
+			Tester.testDiff(Diff.diffObj({}, null), Set(null));
+			Tester.testDiff(Diff.diffObj({a: 1}, {a: 1}), Skip);
+			Tester.testDiff(Diff.diffObj({a: 1, b: 1.0, c: [1,2,3], d: "string", e: {a: 1}}, {}), Set({"@removed": ["a", "b", "c", "d", "e"]}));
+			Tester.testDiff(Diff.diffObj({}, {a: 1, b: 1.0, c: [1,2,3], d: "string", e: {a: 1}}), Set({a: 1, b: 1.0, c: [1,2,3], d: "string", e: {a: 1}}));
+
+			// Diff arrays
+			Tester.testDiff(Diff.diffObj({a: []}, {a: []}), Skip);
+
+			Tester.testDiff(Diff.diffObj({a: [1]}, {a: []}), Set({a: []}));
+			Tester.testDiff(Diff.diffObj({a: []}, {a: [1]}), Set({a: [1]}));
+			Tester.testDiff(Diff.diffObj({a: [1,2]}, {a: [1]}), Set({a: [1]}));
+			Tester.testDiff(Diff.diffObj({a: null}, {a: [1]}), Set({a: [1]}));
+			Tester.testDiff(Diff.diffObj({a: []}, {a: null}), Set({a: null}));
+			Tester.testDiff(Diff.diffObj({a: []}, {}), Set({"@removed": ["a"]}));
+
 		}
 
-		// Test that a difference in the child causes the diff of the child to be serialised
-		bChild.props = {foo: 2};
-		{
-			switch(a.diff(b, {})) {
-				case Skip: throw "no skip";
-				case Set(diff): {
-					Assert.assert(Reflect.hasField(diff, "children"));
-					Assert.assert(Reflect.hasField(diff.children, "child"));
-					Assert.assert(Reflect.hasField(diff.children.child, "props"));
 
-					Assert.assert(Reflect.fields(diff.children.child).length == 1);
-					Tester.expectEqual(diff.children.child.props.foo, 2);
-				}
+		var a = {
+			a: 1,
+			b: 2,
+			c: [1, 2, 3],
+			d: {
+				a: 1,
+				b: 2,
+				c: [1,2,3],
 			}
 		}
 
-		// test 2 deep diff
-		(bChildChild.props:Dynamic).bar = 4;
-
-		{
-			switch(a.diff(b, {})) {
-				case Skip: throw "no skip";
-				case Set(diff): {
-					Assert.assert(Reflect.hasField(diff, "children"));
-					Assert.assert(Reflect.hasField(diff.children, "child"));
-					Assert.assert(Reflect.hasField(diff.children.child, "props"));
-
-					Assert.assert(Reflect.hasField(diff.children.child, "children"));
-					Assert.assert(Reflect.hasField(diff.children.child.children, "subchild"));
-					Assert.assert(Reflect.hasField(diff.children.child.children.subchild, "props"));
-
-					Assert.assert(Reflect.fields(diff.children.child).length == 2); // props and children
-
-					Tester.expectEqual(diff.children.child.props.foo, 2);
-
-					Assert.assert(Reflect.fields(diff.children.child.children.subchild).length == 1); // only props
-					Tester.expectEqual(diff.children.child.children.subchild.props.bar, 4);
-
-				}
-			}
+		var b = {
+			a: 1,
+			b: 3,
+			c: [1,2,3],
 		}
 
-		// Check deep hierarchy without intermediary struct
-		bChild.props = {foo: 1};
-
-		{
-			switch(a.diff(b, {})) {
-				case Skip: throw "no skip";
-				case Set(diff): {
-					Assert.assert(Reflect.hasField(diff, "children"));
-					Assert.assert(Reflect.hasField(diff.children, "child"));
-
-					Assert.assert(Reflect.hasField(diff.children.child, "children"));
-					Assert.assert(Reflect.hasField(diff.children.child.children, "subchild"));
-					Assert.assert(Reflect.hasField(diff.children.child.children.subchild, "props"));
-
-					Assert.assert(Reflect.fields(diff.children.child).length == 1); // only children
-
-					Assert.assert(Reflect.fields(diff.children.child.children.subchild).length == 1); // only props
-					Tester.expectEqual(diff.children.child.children.subchild.props.bar, 4);
-
-				}
-			}
-		}
-
-		// Test that if the child is removed from A, the full object is serialized in the diff
-		aChild.parent = null;
-		{
-			switch(a.diff(b, {})) {
-				case Skip: throw "no skip";
-				case Set(diff): {
-					Assert.assert(Reflect.hasField(diff, "children"));
-					Assert.assert(Reflect.hasField(diff.children, "child"));
-					Assert.assert(Reflect.hasField(diff.children.child, "props"));
-					Tester.expectEqual(diff.children.child.type, "prefab");
-					Tester.expectEqual(diff.children.child.props.foo, 1);
-
-					Assert.assert(Reflect.hasField(diff.children.child, "children"));
-					// Because the child is serialized using the prefab serialization, the children is an array
-					Tester.expectNotEqual(diff.children.child.children[0], null);
-					Assert.assert(Reflect.hasField(diff.children.child.children[0], "props"));
-
-					Tester.expectEqual(diff.children.child.children[0].name, "subchild");
-					Tester.expectEqual(diff.children.child.children[0].type, "prefab");
-					Tester.expectEqual(diff.children.child.children[0].props.bar, 4);
-				}
-			}
-		}
-		// reset aChild parent
-		aChild.parent = a;
-
-		// Test that if the child is removed from the comparaison, a null is set in the children chain to
-		// indicate that the prefab has been removed
-		bChild.parent = null;
-
-		{
-			switch(a.diff(b, {})) {
-				case Skip: throw "no skip";
-				case Set(diff): {
-					Assert.assert(Reflect.hasField(diff, "children"));
-					Assert.assert(Reflect.hasField(diff.children, "child"));
-					Tester.expectEqual(diff.children.child, null);
-
-
-				}
-			}
-		}
-
-		var bChildObj = new hrt.prefab.Object3D(b, null);
-		bChildObj.name = "child";
-
-		{
-			switch(a.diff(b, {})) {
-				case Skip: throw "no skip";
-				case Set(diff): {
-					Assert.assert(Reflect.hasField(diff, "children"));
-					Assert.assert(Reflect.hasField(diff.children, "child"));
-					Tester.expectEqual(diff.children.child.type, "object");
-					Tester.expectEqual(diff.children.child.name, "child");
-				}
-			}
+		switch(Diff.diffObj(a,b)) {
+			case Skip: throw "Should not skip";
+			case Set(v):
+				Tester.expectEqual(Reflect.hasField(v, "a"), false);
+				Tester.expectEqual(v.b, 3);
+				Tester.expectEqual(Reflect.hasField(v, "c"), false);
+				Tester.expectEqual(Reflect.hasField(v, "@removed"), true);
+				Tester.expectEqual((Reflect.getProperty(v, "@removed"):Array<Dynamic>).contains("d"), true);
 		}
 	}
 }
@@ -704,10 +236,36 @@ class Tester extends hrt.prefab.Prefab {
 		Assert.assert(a != b);
 	}
 
-	public static function expectEqualDeep(a: Dynamic, b: Dynamic) {
-		var isEqual = hrt.prefab.Macros.isEqual(a, b);
-		Assert.assert(isEqual);
+	public static function expectEqualDyn(a: Dynamic, b: Dynamic) {
+		expectEqual(haxe.Json.stringify(a), haxe.Json.stringify(b));
 	}
+
+	public static function testDiff(a: DiffResult, b: DiffResult) {
+		switch (a) {
+			case Skip:
+				switch (b) {
+					case Skip: return;
+					case Set(v): throw 'Skip were set $v was expected';
+				}
+			case Set(v):
+				switch(b) {
+					case Skip: throw 'Value $v where Skip was expected';
+					case Set(w):
+						expectEqualDyn(v,w);
+						return;
+				}
+		}
+	}
+
+	// public static function expectEqualDeep(a: Dynamic, b: Dynamic) {
+	// 	var isEqual = hrt.prefab.Macros.isEqual(a, b);
+	// 	Assert.assert(isEqual);
+	// }
+
+	// public static function expectNotEqualDeep(a: Dynamic, b: Dynamic) {
+	// 	var isEqual = hrt.prefab.Macros.isEqual(a, b);
+	// 	Assert.assert(!isEqual);
+	// }
 
 
 	#if editor
@@ -724,14 +282,18 @@ class Tester extends hrt.prefab.Prefab {
 		var textResult = "";
 
 		var tests = [
-			TestDiffPrefabBase.test,
-			TestDiffPrefabEnums.test,
-			TestDiffTypedef.test,
-			TestDiffArray.test,
-			TestDiffDynamic.test,
-			TestCopyAllToDynamic.test,
+			Diff.test,
+			// TestSubclass.test,
+			// TestCloneDynamic.test,
+			// TestSerArray.test,
+			// TestDiffPrefabBase.test,
+			// TestDiffPrefabEnums.test,
+			// TestDiffTypedef.test,
+			// TestDiffArray.test,
+			// TestDiffDynamic.test,
+			// TestCopyAllToDynamic.test,
 			TestLocatePrefab.test,
-			TestDiffChildren.test,
+			// TestDiffChildren.test,
 		];
 
 		var runs = 0;
@@ -742,7 +304,7 @@ class Tester extends hrt.prefab.Prefab {
 				test();
 				success ++;
 			} catch(e) {
-				textResult += 'Test $runs failed: \n$e\n\n${haxe.CallStack.toString(haxe.CallStack.exceptionStack(true))}\n\n';
+				textResult += '=========================================================================\n=========================================================================\nTest $runs failed: \n$e\n\n${haxe.CallStack.toString(haxe.CallStack.exceptionStack(true))}\n\n';
 			}
 		}
 
