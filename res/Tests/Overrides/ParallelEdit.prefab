@@ -1,0 +1,29 @@
+{
+	"type": "prefab",
+	"children": [
+		{
+			"type": "reference",
+			"name": "BaseReference",
+			"source": "Tests/Overrides/BaseReference.prefab",
+			"editMode": "Override",
+			"overrides": {
+				"children": {
+					"polygon@4": {
+						"x": -0.5,
+						"y": 3
+					},
+					"polygon5@1": {
+						"color": -16711864
+					}
+				}
+			}
+		},
+		{
+			"type": "reference",
+			"name": "BaseReference",
+			"source": "Tests/Overrides/BaseReference.prefab",
+			"x": 5,
+			"editMode": "Edit"
+		}
+	]
+}

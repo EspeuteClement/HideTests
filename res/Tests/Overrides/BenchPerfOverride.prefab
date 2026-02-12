@@ -1,0 +1,24 @@
+{
+	"type": "prefab",
+	"children": [
+		{
+			"type": "reference",
+			"name": "Pristine",
+			"source": "Tests/Overrides/BaseReference.prefab",
+			"editMode": "Override",
+			"overrides": {
+				"children": {
+					"polygon@1": {
+						"children": {
+							"MeshWave": {
+								"props": {
+									"speed": 5
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
+}

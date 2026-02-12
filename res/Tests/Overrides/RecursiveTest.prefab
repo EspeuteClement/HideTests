@@ -1,0 +1,24 @@
+{
+	"type": "prefab",
+	"children": [
+		{
+			"type": "reference",
+			"name": "ReccursiveOverride",
+			"source": "Tests/Overrides/ReccursiveOverride.prefab",
+			"editMode": "Override",
+			"overrides": {
+				"children": {
+					"BaseReference": {
+						"overrides": {
+							"children": {
+								"polygon@4": {
+									"color": -65332
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
+}

@@ -1,0 +1,19 @@
+{
+	"type": "prefab",
+	"children": [
+		{
+			"type": "reference",
+			"name": "C",
+			"source": "Tests/Overrides/CyclicReferences.hx/C.prefab",
+			"x": 2.8,
+			"y": 1.5
+		},
+		{
+			"type": "reference",
+			"name": "C",
+			"source": "Tests/Overrides/CyclicReferences.hx/C.prefab",
+			"x": 0.6,
+			"y": -3.5
+		}
+	]
+}

@@ -1,0 +1,188 @@
+{
+	"type": "prefab",
+	"children": [
+		{
+			"type": "polygon",
+			"name": "polygon",
+			"scaleX": 1.67,
+			"scaleY": 1.67,
+			"scaleZ": 1.67,
+			"kind": 1,
+			"args": [
+				11,
+				360,
+				0,
+				4
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon5",
+			"y": -1,
+			"z": 0.01,
+			"scaleX": 0.38,
+			"scaleY": 0.38,
+			"scaleZ": 0.38,
+			"rotationX": 24.55,
+			"rotationY": -13.64,
+			"rotationZ": 90,
+			"color": -65536,
+			"kind": 0,
+			"args": [
+				0
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon",
+			"x": 0.5,
+			"z": 0.01,
+			"scaleX": 0.42,
+			"scaleY": 0.42,
+			"scaleZ": 0.42,
+			"rotationZ": 35.45,
+			"color": -11993344,
+			"kind": 0,
+			"args": [
+				0
+			],
+			"children": [
+				{
+					"type": "material",
+					"name": "material",
+					"props": {
+						"PBR": {
+							"mode": "PBR",
+							"blend": "None",
+							"shadows": true,
+							"culling": "Back",
+							"depthTest": "Less",
+							"colorMask": 15,
+							"enableStencil": false
+						}
+					},
+					"diffuseMap": "Textures/Gradient.png"
+				},
+				{
+					"type": "shader",
+					"name": "MeshWave",
+					"source": "hrt.shader.MeshWave",
+					"props": {
+						"axis": [
+							0,
+							1,
+							0
+						],
+						"speed": 0.72,
+						"length": 1,
+						"scale": 1,
+						"fmSpeed": 0.47,
+						"fmAmplitude": 0.25,
+						"randomScale": 0,
+						"randomSpeed": 0.12
+					}
+				}
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon",
+			"x": -0.5,
+			"z": 0.01,
+			"scaleX": 0.3,
+			"scaleY": 0.3,
+			"scaleZ": 0.3,
+			"rotationZ": 35.45,
+			"color": -65320,
+			"kind": 0,
+			"args": [
+				0
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon",
+			"x": 0.5,
+			"y": 2,
+			"z": 0.01,
+			"scaleX": 0.42,
+			"scaleY": 0.42,
+			"scaleZ": 0.42,
+			"rotationZ": 35.45,
+			"color": -65536,
+			"kind": 0,
+			"args": [
+				0
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon",
+			"x": -2.5,
+			"y": 2,
+			"z": 0.01,
+			"scaleX": 0.42,
+			"scaleY": 0.42,
+			"scaleZ": 0.42,
+			"rotationZ": 35.45,
+			"color": -12915465,
+			"kind": 0,
+			"args": [
+				0
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon5",
+			"y": -1,
+			"z": 0.01,
+			"scaleX": 0.38,
+			"scaleY": 0.38,
+			"scaleZ": 0.38,
+			"rotationX": 24.55,
+			"rotationY": -13.64,
+			"rotationZ": 90,
+			"color": -65536,
+			"kind": 0,
+			"args": [
+				0
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon7",
+			"x": 1,
+			"y": 0.9,
+			"z": -0.09,
+			"scaleX": 0.38,
+			"scaleY": 0.38,
+			"scaleZ": 0.38,
+			"rotationX": 24.55,
+			"rotationY": -13.64,
+			"rotationZ": 90,
+			"color": -16727809,
+			"kind": 0,
+			"args": [
+				0
+			]
+		},
+		{
+			"type": "polygon",
+			"name": "polygon7",
+			"x": 2,
+			"y": -0.1,
+			"z": -0.09,
+			"scaleX": 0.38,
+			"scaleY": 0.38,
+			"scaleZ": 0.38,
+			"rotationX": 24.55,
+			"rotationY": -13.64,
+			"rotationZ": 90,
+			"color": -16727809,
+			"kind": 0,
+			"args": [
+				0
+			]
+		}
+	]
+}

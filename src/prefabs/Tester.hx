@@ -1,185 +1,6 @@
 package prefabs;
-
-
-enum DiffResult {
-	Skip;
-	Set(value: Dynamic);
-}
-class Diff {
-
-	public static function addToDiff(diff: DiffResult, key: String, value: Dynamic) : DiffResult{
-		var v = switch(diff) {
-			case Skip:
-				var v = {};
-				Reflect.setField(v, key, value);
-				return Set(v);
-			case Set(v):
-				Reflect.setField(v, key, value);
-				return diff;
-		}
-	}
-
-	public static function deepCopy(v:Dynamic) : Dynamic {
-		return haxe.Json.parse(haxe.Json.stringify(v));
-	}
-
-	public static function diffPrefab(original: Dynamic, modified: Dynamic) : DiffResult {
-		if (original == null || modified == null) {
-			if (original == modified)
-				return Skip;
-			return Set(deepCopy(modified));
-		}
-
-		if (original.type != modified.type)
-			return Set(deepCopy(modified));
-
-		var result = diffObj(original, modified, ["children"]); // we could skip "type" but because we are sure that the type are equals they will never be serialised
-
-		var resultChildren = {};
-
-		var originalChildren = original.children ?? [];
-		var modifiedChildren = modified.children ?? [];
-
-		var childrenMap : Map<String, {originals: Array<Dynamic>, modifieds: Array<Dynamic>}> = [];
-
-		for (index => child in originalChildren) {
-			hrt.tools.MapUtils.getOrPut(childrenMap, child.name ?? "", {originals: [], modifieds: []}).originals.push({index: index, child: child});
-		}
-
-		for (index => child in modifiedChildren) {
-			hrt.tools.MapUtils.getOrPut(childrenMap, child.name ?? "", {originals: [], modifieds: []}).modifieds.push({index: index, child: child});
-		}
-
-		for (name => data in childrenMap) {
-			for (index in 0...hxd.Math.imax(data.originals.length, data.modifieds.length)) {
-				var originalChild = data.originals[index];
-				var modifiedChild = data.modifieds[index];
-				var key = name;
-				if (index > 0)
-					key += '@$index';
-
-				var diff = diffPrefab(originalChild?.child, modifiedChild?.child);
-
-				if (originalChild?.index != modifiedChild?.index) {
-					if (modifiedChild?.index != null) {
-						diff = addToDiff(diff, "@index", modifiedChild.index);
-					}
-				}
-
-				switch(diff) {
-					case Skip:
-					case Set(value):
-						Reflect.setField(resultChildren, key, value);
-				}
-			}
-		}
-
-		if (Reflect.fields(resultChildren).length > 0) {
-			result = addToDiff(result, "children", resultChildren);
-		}
-
-		return result;
-	}
-
-	public static function diffObj(original: Dynamic, modified: Dynamic, skipFields: Array<String> = null) : DiffResult {
-		skipFields ??= [];
-		var result = {};
-		var removedFields : Array<String> = [];
-
-		if (original == null || modified == null) {
-			if (original == modified)
-				return Skip;
-			return Set(deepCopy(modified));
-		}
-
-		// Mark fields as removed
-		for (originalField in Reflect.fields(original)) {
-			if (skipFields.contains(originalField))
-				continue;
-
-			if (!Reflect.hasField(modified, originalField)) {
-				removedFields.push(originalField);
-				continue;
-			}
-		}
-
-		for (modifiedField in Reflect.fields(modified)) {
-			if (skipFields.contains(modifiedField))
-				continue;
-
-			var originalValue = Reflect.getProperty(original, modifiedField);
-			var modifiedValue = Reflect.getProperty(modified, modifiedField);
-
-			switch(diffValue(originalValue, modifiedValue)) {
-				case Skip:
-				case Set(v):
-					Reflect.setField(result, modifiedField, v);
-			}
-		}
-
-		if (removedFields.length > 0) {
-			Reflect.setField(result, "@removed", removedFields);
-		}
-
-		if (Reflect.fields(result).length == 0)
-			return Skip;
-		return Set(result);
-	}
-
-	public static function diffArr(original: Array<Dynamic>, modified: Dynamic) : DiffResult {
-		if (original.length != modified.length) {
-			return Set(deepCopy(modified));
-		}
-
-		for (index in 0...original.length) {
-			var originalValue = original[index];
-			var modifiedValue = modified[index];
-
-			switch(diffValue(originalValue, modifiedValue)) {
-				case Set(_):
-					// return the whole modified object when any field is different than the original
-					return Set(deepCopy(modified));
-				case Skip:
-			}
-		}
-		return Skip;
-	}
-
-	public static function diffValue(originalValue: Dynamic, modifiedValue: Dynamic) : DiffResult {
-		var originalType = Type.typeof(originalValue);
-		var modifiedType = Type.typeof(modifiedValue);
-
-		if (!originalType.equals(modifiedType)) {
-			return Set(modifiedValue);
-		}
-
-		switch (modifiedType) {
-			case TNull:
-				// The only way we get here is if both types are null, so by definition they are both null and so there is no diff
-				return Skip;
-			case TInt | TFloat | TBool:
-				if (originalValue == modifiedValue) {
-					return Skip;
-				}
-			case TObject:
-				return diffObj(originalValue, modifiedValue);
-			case TClass(subClass): {
-				switch (subClass) {
-					case String:
-						if (originalValue == modifiedValue) {
-							return Skip;
-						}
-					case Array:
-						return diffArr(originalValue, modifiedValue);
-					default:
-						throw "Can't diff class " + subClass;
-				}
-			}
-			default:
-				throw "Unhandled type " + modifiedType;
-		}
-		return Set(modifiedValue);
-	}
+import hrt.prefab.Diff;
+class DiffTest {
 
 	/**
 		Modifies `target` dynamic so `apply(a, diff(a, b)) == b`
@@ -282,7 +103,7 @@ class Diff {
 			var base = {};
 			var diff = {a: 1, b: 2};
 
-			apply(base, diff);
+			base = hrt.prefab.Diff.apply(base, diff);
 			Tester.expectEqualDyn(base, {a: 1, b: 2});
 		}
 
@@ -290,8 +111,14 @@ class Diff {
 			var base = {c: 3};
 			var diff = {a: 1, b: 2};
 
-			apply(base, diff);
+			base = hrt.prefab.Diff.apply(base, diff);
 			Tester.expectEqualDyn(base, {c:3, a: 1, b: 2});
+		}
+
+		{
+			var base = {c: 3};
+			base = hrt.prefab.Diff.apply(base, null);
+			Tester.expectEqualDyn(base, null);
 		}
 
 
@@ -343,14 +170,14 @@ class Diff {
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 1}
+						{name: "a",a: 1, type: "a"}
 					]
 				},
 				//////////////////////////////////
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 2}
+						{name: "a",a: 2, type: "a"}
 					]
 				}
 			,
@@ -362,16 +189,33 @@ class Diff {
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 1},
-						{name: "a",a: 2}
+						{name: "a",a: 1, type: "a"}
+					]
+				},
+				//////////////////////////////////
+				{
+					a: 2,
+					children: [
+						{name: "a",a: 1, type: "a"}
+					]
+				}
+			,
+			Set({a: 2}), true);
+
+			Tester.testDiff(
+				{
+					a: 1,
+					children: [
+						{name: "a",a: 1, type: "a"},
+						{name: "a",a: 2, type: "a"}
 					]
 				},
 				//////////////////////////////////
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 2},
-						{name: "a",a: 3}
+						{name: "a",a: 2, type:"a"},
+						{name: "a",a: 3, type:"a"}
 					]
 				}
 			,
@@ -383,15 +227,15 @@ class Diff {
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 1},
-						{name: "a",a: 2}
+						{name: "a",a: 1, type: "a"},
+						{name: "a",a: 2, type: "a"}
 					]
 				},
 				//////////////////////////////////
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 2},
+						{name: "a",a: 2, type: "a"},
 					]
 				}
 			,
@@ -403,18 +247,18 @@ class Diff {
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 1},
-						{name: "b",a: 1},
-						{name: "c",a:1 }
+						{name: "a",a: 1, type: "a"},
+						{name: "b",a: 1, type: "a"},
+						{name: "c",a:1, type: "a"}
 					]
 				},
 				//////////////////////////////////
 				{
 					a: 1,
 					children: [
-						{name: "b",a: 1},
-						{name: "c",a:1 },
-						{name: "a",a: 2}
+						{name: "b",a: 1, type: "a"},
+						{name: "c",a:1 , type: "a"},
+						{name: "a",a: 2, type: "a"}
 					]
 				}
 			,
@@ -426,27 +270,27 @@ class Diff {
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 1},
+						{name: "a",a: 1, type: "a"},
 					]
 				},
 				//////////////////////////////////
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 2},
-						{name: "a",a: 2}
+						{name: "a",a: 2, type: "a"},
+						{name: "a",a: 2, type: "a"}
 					]
 				}
 			,
 			Set({
-				children: {"a": {a: 2}, "a@1": {"name": "a", a: 2, "@index":1}}
+				children: {"a": {a: 2}, "a@1": {"name": "a", a: 2, "@index":1, type: "a"}}
 			}), true);
 
 			Tester.testDiff(
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 1},
+						{name: "a",a: 1, type: "a"},
 						{name: "a", type: "foo", a:1},
 						{name: "a", type: "foo", a:1},
 					]
@@ -455,7 +299,7 @@ class Diff {
 				{
 					a: 1,
 					children: [
-						{name: "a",a: 2},
+						{name: "a",a: 2, type: "a"},
 						{name: "a",a: 2, type: "bar"}
 					]
 				}
@@ -464,6 +308,49 @@ class Diff {
 				children: {"a": {a: 2}, "a@1": {"name": "a", a: 2, type:"bar"}, "a@2": null},
 			}), true);
 
+			Tester.testDiff(
+				{
+					a: 1,
+					children: [
+						{name: "a", a:1, type: "a", children: [{name: "a", a:1, type: "a"}, {name: "b", a:2, type: "a"}, {name: "c", a:3, type: "a"}]}
+					]
+				},
+				//////////////////////
+				{
+					a: 2,
+					children: [
+						{name: "a", a:2, type: "a", children: [{name: "c", a:1, type: "a"}, {name: "b", a:2, type: "a"}, {name: "a", a:3, type: "a"}]}
+					]
+				},
+				Set({
+					a: 2,
+					children: {"a": {a:2, children: {"a": {"@index": 2, a:3}, "c": {"@index": 0, a: 1}}}}
+				}), true
+			);
+
+			Tester.expectEqualDyn(
+				hrt.prefab.Diff.apply(
+					{
+						a: 1,
+						children: [
+							{type: "a", name: "a", foo: 1}
+						]
+					},
+					// diff
+					{
+						{children: {a: {foo: 2}, "a@1": {foo: 4}, "a@2": {type: "a", foo: 5, name: "a"}}}
+					}
+				),
+				{
+					a: 1,
+					children: [
+						{type: "a", name: "a", foo: 2},
+						// a@1 shouldn't be here because it modifies a struct that is not present in the original struct
+						// (because there is no type);
+						{type: "a", name: "a", foo: 5},
+					]
+				}
+			);
 		}
 	}
 }
@@ -545,7 +432,7 @@ class Tester extends hrt.prefab.Prefab {
 
 	public static function expectEqualDyn(a: Dynamic, b: Dynamic) {
 		// redundancy with eqlDeep and diffValue != skip to make sure we dont miss any case
-		if (!eqlDeep(a, b) || @:privateAccess Diff.diffValue(a,b) != Skip) {
+		if (!eqlDeep(a, b) || @:privateAccess Diff.diff(a,b) != Skip) {
 			throw haxe.Json.stringify(a) + "\n!=\n" + haxe.Json.stringify(b);
 		}
 	}
@@ -586,7 +473,7 @@ class Tester extends hrt.prefab.Prefab {
 	public static function testDiff(orig: Dynamic, modif: Dynamic, expected: DiffResult, prefabMode: Bool = false) {
 		var origClone = haxe.Json.parse(haxe.Json.stringify(orig));
 		var modifClone = haxe.Json.parse(haxe.Json.stringify(modif));
-		var a = @:privateAccess prefabMode ? Diff.diffPrefab(orig, modif) : Diff.diffValue(orig, modif);
+		var a = @:privateAccess prefabMode ? Diff.diffPrefab(orig, modif) : Diff.diff(orig, modif);
 		var b = expected;
 
 		// Diff shouldn't modify values
@@ -637,8 +524,8 @@ class Tester extends hrt.prefab.Prefab {
 		var textResult = "";
 
 		var tests = [
-			Diff.test,
-			Diff.testApply,
+			DiffTest.test,
+			DiffTest.testApply,
 			// TestSubclass.test,
 			// TestCloneDynamic.test,
 			// TestSerArray.test,

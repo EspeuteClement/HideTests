@@ -1,0 +1,11 @@
+-cp src
+-lib hide
+-lib castle
+-lib domkit
+--macro hide.Plugin.init()
+--macro include("prefabs")
+-dce no
+-hl hide-plugin.hl
+--main PluginHL
+-debug
+-D dump=pretty

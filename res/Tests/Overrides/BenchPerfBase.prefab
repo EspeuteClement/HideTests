@@ -1,0 +1,14 @@
+{
+	"type": "prefab",
+	"children": [
+		{
+			"type": "reference",
+			"name": "BaseReference",
+			"source": "Tests/Overrides/BaseReference.prefab",
+			"x": 4,
+			"y": -0.1,
+			"z": -0.1,
+			"editMode": "Edit"
+		}
+	]
+}

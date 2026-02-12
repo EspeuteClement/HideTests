@@ -1,0 +1,9 @@
+-hl benchOverride.hl
+-cp src
+-lib heaps
+-lib hlsdl
+-lib hide
+-main benches.BenchOverrides
+--macro include("hrt.prefab")
+--macro include("hrt.shader")
+--macro include("hrt.shgraph")
